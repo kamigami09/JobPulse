@@ -17,7 +17,7 @@ export default function JobDetail() {
     useEffect(() => {
         const fetchJob = async () => {
             try {
-                const res = await fetch(`http://localhost:5000/api/jobs/${id}`);
+                const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/jobs/${id}`);
                 if (!res.ok) {
                     if (res.status === 404) {
                         navigate('/app');
@@ -51,7 +51,7 @@ export default function JobDetail() {
         setIsSaving(true);
         setError(null);
         try {
-            const res = await fetch(`http://localhost:5000/api/jobs/${id}`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/jobs/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)

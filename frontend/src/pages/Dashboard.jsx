@@ -8,7 +8,7 @@ export default function Dashboard() {
 
     const fetchJobs = async () => {
         try {
-            const res = await fetch('http://localhost:5000/api/jobs');
+            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/jobs`);
             const data = await res.json();
             setJobs(data);
         } catch (err) {
@@ -24,7 +24,7 @@ export default function Dashboard() {
 
     const handleStatusChange = async (id, newStatus) => {
         try {
-            await fetch(`http://localhost:5000/api/jobs/${id}`, {
+            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/jobs/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus })

@@ -7,7 +7,7 @@ export default function Settings() {
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
-        fetch('http://localhost:5000/api/settings')
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/settings`)
             .then(res => res.json())
             .then(data => {
                 setSettings(data);
@@ -22,7 +22,7 @@ export default function Settings() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const res = await fetch('http://localhost:5000/api/settings', {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/settings`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings)
@@ -37,7 +37,7 @@ export default function Settings() {
     };
 
     const handleExport = () => {
-        window.open('http://localhost:5000/api/settings/export', '_blank');
+        window.open(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/settings/export`, '_blank');
         toast.success('Export started!');
     };
 
@@ -45,7 +45,7 @@ export default function Settings() {
         if (!window.confirm('Are you sure you want to delete ALL your job data? This cannot be undone.')) return;
 
         try {
-            const res = await fetch('http://localhost:5000/api/settings/delete-data', {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/settings/delete-data`, {
                 method: 'DELETE'
             });
             if (!res.ok) throw new Error('Failed to delete data');
