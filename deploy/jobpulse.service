@@ -1,0 +1,25 @@
+[Unit]
+Description=JobPulse Flask backend (Gunicorn)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/jobpulse-backend
+EnvironmentFile=/var/www/jobpulse-backend/.env
+ExecStart=/var/www/jobpulse-backend/venv/bin/gunicorn \
+    --workers 4 \
+    --bind 127.0.0.1:5000 \
+    --timeout 120 \
+    --access-logfile /var/log/jobpulse/access.log \
+    --error-logfile /var/log/jobpulse/error.log \
+    run:app
+Restart=on-failure
+RestartSec=5s
+StandardOutput=append:/var/log/jobpulse/stdout.log
+StandardError=append:/var/log/jobpulse/stderr.log
+
+[Install]
+WantedBy=multi-user.target

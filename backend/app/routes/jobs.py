@@ -1,107 +1,160 @@
-from flask import Blueprint, request, jsonify
+import csv
+import io
+from datetime import datetime, timezone
+
+from flask import Blueprint, jsonify, request, Response
+from sqlalchemy.exc import IntegrityError
 
 from app import db
 from app.models import Job
 from app.utils.url_utils import clean_url, validate_url
-from app.utils.extractor import extract_job_details
 
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/api/jobs")
 
-CURRENT_USER_ID = "dev-user"  # Placeholder until auth is implemented
+
+@jobs_bp.route("/export", methods=["GET"])
+def export_csv():
+    """Return all Saved jobs as a downloadable CSV."""
+    jobs = Job.query.filter_by(status="Saved").order_by(Job.scraped_at.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Title", "Company", "Domain", "Skills", "Contact Email",
+                     "URL", "Date Saved", "Notes"])
+    for j in jobs:
+        writer.writerow([
+            j.title or "",
+            j.company or "",
+            j.domain or "",
+            "; ".join(j.skills or []),
+            j.contact_email or "",
+            j.url,
+            j.scraped_at.strftime("%Y-%m-%d") if j.scraped_at else "",
+            j.notes or "",
+        ])
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    response = Response(output.getvalue(), status=200)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = f'attachment; filename="jobpulse-saved-{today}.csv"'
+    return response
 
 
-@jobs_bp.route("", methods=["POST"])
-def create_job():
-    """Create a new job application entry."""
-    data = request.get_json()
+@jobs_bp.route("/scrape", methods=["POST"])
+def scrape_job():
+    """
+    Scrape a job URL and save it. Returns existing record if URL already saved.
+    Body: {"url": "https://..."}
+    """
+    data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Request body must be JSON"}), 400
 
     url = (data.get("url") or "").strip()
     if not url:
-        return jsonify({"error": "URL is required"}), 400
-
+        return jsonify({"error": "url is required"}), 400
     if not validate_url(url):
         return jsonify({"error": "Invalid or unsafe URL"}), 400
 
     cleaned = clean_url(url)
 
+    # Return existing record if already saved (UNIQUE constraint)
+    existing = Job.query.filter_by(url=cleaned).first()
+    if existing:
+        resp = existing.to_dict()
+        resp["already_existed"] = True
+        return jsonify(resp), 200
+
+    # Import here to keep startup fast and avoid circular imports
+    from app.scraper import scrape_job as do_scrape
+
+    try:
+        scraped = do_scrape(cleaned)
+    except Exception as e:
+        scraped = {
+            "title": None, "company": None, "domain": None,
+            "skills": [], "contact_email": None, "source": "other",
+            "_needs_review": True,
+        }
+
+    status = "needs_review" if scraped.pop("_needs_review", False) else "Saved"
+    scraped.pop("_layer_used", None)
+
     job = Job(
-        user_id=CURRENT_USER_ID,
-        url_original=url,
-        url_clean=cleaned,
-        title=data.get("title"),
-        company=data.get("company"),
-        location=data.get("location"),
-        notes=data.get("notes"),
+        url=cleaned,
+        title=scraped.get("title"),
+        company=scraped.get("company"),
+        domain=scraped.get("domain"),
+        skills=scraped.get("skills") or [],
+        contact_email=scraped.get("contact_email"),
+        source=scraped.get("source"),
+        status=status,
     )
     db.session.add(job)
 
-    extraction_status = "manual"
-    if not job.title and not job.company:
-        ext = extract_job_details(cleaned)
-        if ext["success"]:
-            if ext["title"]: job.title = ext["title"]
-            if ext["company"]: job.company = ext["company"]
-            if ext["location"]: job.location = ext["location"]
-            extraction_status = "success"
-        else:
-            extraction_status = ext["message"]
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        # Race condition: another request saved the same URL simultaneously
+        existing = Job.query.filter_by(url=cleaned).first()
+        if existing:
+            resp = existing.to_dict()
+            resp["already_existed"] = True
+            return jsonify(resp), 200
+        return jsonify({"error": "Failed to save job"}), 500
 
-    db.session.commit()
-    resp = job.to_dict()
-    resp["extraction_status"] = extraction_status
-    return jsonify(resp), 201
+    return jsonify(job.to_dict()), 201
 
 
 @jobs_bp.route("", methods=["GET"])
 def list_jobs():
-    """List all jobs for the current user, newest first."""
-    jobs = (
-        Job.query
-        .filter_by(user_id=CURRENT_USER_ID)
-        .order_by(Job.created_at.desc())
-        .all()
-    )
+    """Return all jobs, newest first. Supports ?status= filter."""
+    status_filter = request.args.get("status")
+    query = Job.query
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+    jobs = query.order_by(Job.scraped_at.desc()).all()
     return jsonify([j.to_dict() for j in jobs])
 
 
-@jobs_bp.route("/<string:job_id>", methods=["GET"])
-def get_job(job_id):
-    """Get a single job by ID (must belong to current user)."""
-    job = Job.query.filter_by(id=job_id, user_id=CURRENT_USER_ID).first()
-    if not job:
-        return jsonify({"error": "Job not found"}), 404
-    return jsonify(job.to_dict())
-
-
-@jobs_bp.route("/<string:job_id>", methods=["PUT"])
-def update_job(job_id):
-    """Update editable fields of a job."""
-    job = Job.query.filter_by(id=job_id, user_id=CURRENT_USER_ID).first()
-    if not job:
-        return jsonify({"error": "Job not found"}), 404
-
-    data = request.get_json()
+@jobs_bp.route("/<int:job_id>", methods=["PATCH"])
+def update_job(job_id: int):
+    """Partial update of any field. Sets applied_at automatically on first Applied transition."""
+    job = Job.query.get_or_404(job_id)
+    data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Request body must be JSON"}), 400
 
-    # Update allowed fields
-    if "title" in data:
-        job.title = data["title"]
-    if "company" in data:
-        job.company = data["company"]
-    if "location" in data:
-        job.location = data["location"]
-    if "notes" in data:
-        job.notes = data["notes"]
-    if "status" in data:
-        status = data["status"].upper()
-        if status not in Job.VALID_STATUSES:
-            return jsonify({
-                "error": f"Invalid status. Must be one of: {', '.join(Job.VALID_STATUSES)}"
-            }), 400
-        job.status = status
+    allowed = {"title", "company", "domain", "skills", "contact_email",
+               "status", "notes", "source"}
+
+    for field in allowed:
+        if field not in data:
+            continue
+        if field == "status":
+            status = data["status"]
+            if status not in Job.VALID_STATUSES:
+                return jsonify({"error": f"Invalid status. Valid: {Job.VALID_STATUSES}"}), 400
+            # Auto-set applied_at on first transition to Applied
+            if status == "Applied" and job.applied_at is None:
+                job.applied_at = datetime.now(timezone.utc)
+            job.status = status
+        elif field == "skills":
+            skills = data["skills"]
+            if isinstance(skills, str):
+                skills = [s.strip() for s in skills.split(",") if s.strip()]
+            job.skills = skills
+        else:
+            setattr(job, field, data[field])
 
     db.session.commit()
     return jsonify(job.to_dict())
+
+
+@jobs_bp.route("/<int:job_id>", methods=["DELETE"])
+def delete_job(job_id: int):
+    job = Job.query.get_or_404(job_id)
+    db.session.delete(job)
+    db.session.commit()
+    return "", 204

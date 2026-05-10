@@ -1,33 +1,55 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Home from './pages/Home';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import AddJob from './pages/AddJob';
-import JobDetail from './pages/JobDetail';
-import Settings from './pages/Settings';
-import AppLayout from './components/AppLayout';
-import { Toaster } from 'react-hot-toast';
-import './App.css';
+import { useState, useCallback } from 'react'
+import { Toaster } from 'react-hot-toast'
+import TopBar from './components/TopBar'
+import JobGrid from './components/JobGrid'
+import AddJobModal from './components/AddJobModal'
 
-function App() {
+export default function App() {
+  const [modalOpen, setModalOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [statusFilter, setStatusFilter] = useState('')
+
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), [])
+
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      <TopBar
+        onAddJob={() => setModalOpen(true)}
+        statusFilter={statusFilter}
+        onStatusFilter={setStatusFilter}
+      />
 
-        {/* App routes — wrapped in AppLayout (sidebar + nav) */}
-        <Route path="/app" element={<AppLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="jobs/new" element={<AddJob />} />
-          <Route path="jobs/:id" element={<JobDetail />} />
-          <Route path="settings" element={<Settings />} />
-        </Route>
-      </Routes>
-      <Toaster position="bottom-right" />
-    </BrowserRouter>
-  );
+      <main className="mx-auto max-w-screen-2xl px-6 py-6">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">
+            Job tracker
+          </h1>
+        </div>
+        <JobGrid
+          refreshKey={refreshKey}
+          onAddJob={() => setModalOpen(true)}
+          statusFilter={statusFilter}
+        />
+      </main>
+
+      {modalOpen && (
+        <AddJobModal
+          onClose={() => setModalOpen(false)}
+          onSaved={refresh}
+        />
+      )}
+
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: '#18181b',
+            color: '#f4f4f5',
+            border: '1px solid #3f3f46',
+            fontSize: '13px',
+          },
+        }}
+      />
+    </div>
+  )
 }
-
-export default App;

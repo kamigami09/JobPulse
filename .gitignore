@@ -28,5 +28,8 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
-# Docker volumes
+# SQLite / local instance
+backend/instance/
+
+# Docker volumes (legacy — no Docker in this project)
 pgdata/
