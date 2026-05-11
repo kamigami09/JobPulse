@@ -6,28 +6,31 @@ function pct(rate) {
   return `${Math.round(rate * 100)}%`
 }
 
-function caption(num, denom, label) {
+function sub(num, denom, label) {
   if (!denom) return `No ${label} yet`
   return `${num} of ${denom}`
 }
 
-function Card({ label, value, sub, loading }) {
+function Card({ label, value, detail, accent, loading }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 flex flex-col gap-1 min-w-0">
-      <span className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">
+    <div className={`relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex flex-col gap-2 min-w-0 transition-colors hover:border-zinc-700`}>
+      {accent && (
+        <div className={`absolute top-0 left-0 right-0 h-px ${accent}`} />
+      )}
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
         {label}
       </span>
       {loading ? (
-        <div className="h-8 w-16 rounded bg-zinc-800 animate-pulse mt-1" />
+        <div className="h-9 w-20 rounded-md bg-zinc-800 shimmer" />
       ) : (
-        <span className="text-3xl font-semibold tracking-tight text-zinc-100 leading-none mt-1">
+        <span className="font-mono text-3xl font-semibold tracking-tight text-zinc-100 leading-none tabular-nums">
           {value}
         </span>
       )}
       {loading ? (
-        <div className="h-3 w-24 rounded bg-zinc-800 animate-pulse mt-1" />
+        <div className="h-3.5 w-28 rounded bg-zinc-800 shimmer" />
       ) : (
-        <span className="text-xs text-zinc-500 mt-0.5">{sub}</span>
+        <span className="text-xs text-zinc-500 leading-relaxed">{detail}</span>
       )}
     </div>
   )
@@ -50,29 +53,33 @@ export default function StatCards({ refreshKey }) {
   const total  = stats?.total  ?? 0
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
       <Card
-        label="Total Jobs"
+        label="Total Tracked"
         value={loading ? null : total}
-        sub={loading ? null : 'tracked'}
+        detail={loading ? null : 'jobs in pipeline'}
+        accent="bg-indigo-500/60"
         loading={loading}
       />
       <Card
         label="Response Rate"
         value={loading ? null : pct(rates.response_rate)}
-        sub={loading ? null : caption(counts.Applied, total, 'jobs tracked')}
+        detail={loading ? null : sub(counts.Applied ?? 0, total, 'jobs applied')}
+        accent="bg-blue-500/60"
         loading={loading}
       />
       <Card
         label="Interview Rate"
         value={loading ? null : pct(rates.interview_rate)}
-        sub={loading ? null : caption(counts.Interviewing, counts.Applied, 'applied')}
+        detail={loading ? null : sub(counts.Interviewing ?? 0, counts.Applied ?? 0, 'apps to interview')}
+        accent="bg-amber-500/60"
         loading={loading}
       />
       <Card
         label="Offer Rate"
         value={loading ? null : pct(rates.offer_rate)}
-        sub={loading ? null : caption(counts.Offer, counts.Interviewing, 'interviewed')}
+        detail={loading ? null : sub(counts.Offer ?? 0, counts.Interviewing ?? 0, 'interviews to offer')}
+        accent="bg-emerald-500/60"
         loading={loading}
       />
     </div>

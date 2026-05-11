@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
+import { X, Mail, Send, Eye, RefreshCw, CheckCircle, XCircle } from 'lucide-react'
 import { getReminderConfig, getReminderHistory, sendNow, openPreview } from '../lib/reminders'
+
+const STATUS_BADGE = {
+  sent:    { label: 'Sent',     cls: 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20' },
+  skipped: { label: 'Skipped',  cls: 'bg-zinc-500/10 text-zinc-400 ring-zinc-500/20' },
+  failed:  { label: 'Failed',   cls: 'bg-red-500/10 text-red-400 ring-red-500/20' },
+  dry_run: { label: 'Dry run',  cls: 'bg-amber-500/10 text-amber-400 ring-amber-500/20' },
+}
 
 export default function SettingsModal({ onClose }) {
   const [config, setConfig] = useState(null)
@@ -14,7 +22,7 @@ export default function SettingsModal({ onClose }) {
       const [cfg, hist] = await Promise.all([getReminderConfig(), getReminderHistory()])
       setConfig(cfg)
       setHistory(hist)
-    } catch (err) {
+    } catch {
       toast.error('Failed to load reminder settings')
     } finally {
       setLoading(false)
@@ -22,6 +30,12 @@ export default function SettingsModal({ onClose }) {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
 
   const handleSendNow = async (force = false) => {
     setSending(true)
@@ -45,102 +59,97 @@ export default function SettingsModal({ onClose }) {
   const handlePreview = async () => {
     try {
       await openPreview()
-    } catch (err) {
+    } catch {
       toast.error('Preview failed')
     }
   }
 
-  const statusDot = (ok) => (
-    <span className={`inline-block h-2 w-2 rounded-full ${ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
-  )
-
-  const statusLabel = {
-    sent: { label: 'Sent', cls: 'text-emerald-400' },
-    skipped: { label: 'Skipped', cls: 'text-zinc-400' },
-    failed: { label: 'Failed', cls: 'text-red-400' },
-    dry_run: { label: 'Dry run', cls: 'text-amber-400' },
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl">
+      <div className="modal-enter relative z-10 w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl shadow-black/60">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
           <h2 className="text-sm font-semibold text-zinc-100">Settings</h2>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-6">
-          {/* Email Reminders section */}
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-3">
-              Email Reminders
-            </h3>
+        <div className="px-5 py-5 space-y-6 max-h-[70vh] overflow-y-auto">
+          {/* Email Reminders */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Mail className="h-3.5 w-3.5 text-zinc-500" />
+              <h3 className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+                Email Reminders
+              </h3>
+            </div>
 
             {loading ? (
-              <div className="text-xs text-zinc-500">Loading...</div>
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => <div key={i} className="h-9 rounded-lg shimmer" />)}
+              </div>
             ) : config ? (
               <div className="space-y-3">
-                {/* Status rows */}
                 <div className="rounded-lg border border-zinc-800 divide-y divide-zinc-800">
                   <StatusRow label="Auto-schedule" ok={config.enabled}>
-                    {config.enabled ? 'Enabled (Sundays 09:00 Paris)' : 'Disabled — set REMINDERS_ENABLED=true'}
+                    {config.enabled ? 'Enabled — Sundays 09:00 Paris' : 'Set REMINDERS_ENABLED=true'}
                   </StatusRow>
                   <StatusRow label="SMTP" ok={config.smtp_configured}>
-                    {config.smtp_configured ? 'Configured' : 'Set SMTP_USER + SMTP_PASSWORD in .env'}
+                    {config.smtp_configured ? 'Configured' : 'Set SMTP_USER + SMTP_PASSWORD'}
                   </StatusRow>
                   <StatusRow label="Recipient" ok={config.recipient_configured}>
                     {config.recipient_configured ? config.recipient : 'Set REMINDER_TO in .env'}
                   </StatusRow>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-2 pt-1">
+                <div className="flex flex-wrap gap-2 pt-1">
                   <button
                     onClick={() => handleSendNow(false)}
                     disabled={sending || !config.ready}
-                    className="flex h-8 items-center gap-1.5 rounded-md bg-indigo-600 px-3 text-xs font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-1.5 h-8 rounded-md bg-indigo-600 px-3 text-xs font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {sending ? 'Sending...' : 'Send digest now'}
+                    {sending ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                    {sending ? 'Sending…' : 'Send digest now'}
                   </button>
                   <button
                     onClick={() => handleSendNow(true)}
                     disabled={sending || !config.ready}
-                    className="flex h-8 items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Force send even if sent recently"
+                    className="inline-flex items-center gap-1.5 h-8 rounded-md border border-zinc-700 bg-transparent px-3 text-xs font-medium text-zinc-300 hover:border-zinc-600 hover:text-zinc-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Force send
                   </button>
                   <button
                     onClick={handlePreview}
-                    className="flex h-8 items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100"
+                    className="inline-flex items-center gap-1.5 h-8 rounded-md border border-zinc-700 bg-transparent px-3 text-xs font-medium text-zinc-300 hover:border-zinc-600 hover:text-zinc-100 transition-colors"
                   >
-                    Preview email
+                    <Eye className="h-3 w-3" />
+                    Preview
                   </button>
                 </div>
 
                 {!config.ready && (
                   <p className="text-xs text-amber-400">
-                    Configure SMTP credentials in your .env file to enable sending.
+                    Configure SMTP credentials in .env to enable sending.
                   </p>
                 )}
               </div>
             ) : null}
-          </div>
+          </section>
 
-          {/* History section */}
+          {/* History */}
           {history.length > 0 && (
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-3">
+            <section>
+              <h3 className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">
                 Send History
               </h3>
               <div className="rounded-lg border border-zinc-800 overflow-hidden">
@@ -154,24 +163,30 @@ export default function SettingsModal({ onClose }) {
                   </thead>
                   <tbody className="divide-y divide-zinc-800/60">
                     {history.map((row) => {
-                      const s = statusLabel[row.status] || { label: row.status, cls: 'text-zinc-400' }
+                      const s = STATUS_BADGE[row.status] ?? { label: row.status, cls: 'bg-zinc-500/10 text-zinc-400 ring-zinc-500/20' }
                       return (
-                        <tr key={row.id} className="hover:bg-zinc-900/30 transition-colors">
-                          <td className="px-3 py-2 text-zinc-400">
+                        <tr key={row.id} className="hover:bg-zinc-800/30 transition-colors">
+                          <td className="px-3 py-2.5 font-mono text-zinc-400">
                             {new Date(row.sent_at).toLocaleString('en-GB', {
                               day: 'numeric', month: 'short', year: 'numeric',
                               hour: '2-digit', minute: '2-digit',
                             })}
                           </td>
-                          <td className={`px-3 py-2 font-medium ${s.cls}`}>{s.label}</td>
-                          <td className="px-3 py-2 text-right text-zinc-400">{row.job_count}</td>
+                          <td className="px-3 py-2.5">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${s.cls}`}>
+                              {s.label}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-mono text-zinc-400 tabular-nums">
+                            {row.job_count}
+                          </td>
                         </tr>
                       )
                     })}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </section>
           )}
         </div>
       </div>
@@ -181,12 +196,14 @@ export default function SettingsModal({ onClose }) {
 
 function StatusRow({ label, ok, children }) {
   return (
-    <div className="flex items-center justify-between px-3 py-2.5">
-      <div className="flex items-center gap-2">
-        <span className={`inline-block h-2 w-2 rounded-full ${ok ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
-        <span className="text-xs font-medium text-zinc-400">{label}</span>
+    <div className="flex items-center justify-between px-3 py-2.5 gap-4">
+      <div className="flex items-center gap-2 shrink-0">
+        {ok
+          ? <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+          : <XCircle className="h-3.5 w-3.5 text-zinc-600" />}
+        <span className="text-xs font-medium text-zinc-300">{label}</span>
       </div>
-      <span className="text-xs text-zinc-500">{children}</span>
+      <span className="text-xs text-zinc-500 text-right truncate">{children}</span>
     </div>
   )
 }

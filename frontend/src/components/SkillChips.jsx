@@ -7,13 +7,16 @@ export default function SkillChips({ skills = [], max = 3 }) {
       {visible.map((skill) => (
         <span
           key={skill}
-          className="inline-flex items-center rounded-md bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-300 ring-1 ring-inset ring-zinc-700/50"
+          className="inline-flex items-center rounded-md bg-zinc-800 px-1.5 py-0.5 text-[11px] font-medium text-zinc-300 ring-1 ring-inset ring-zinc-700/60"
         >
           {skill}
         </span>
       ))}
       {overflow > 0 && (
-        <span className="inline-flex items-center rounded-md bg-zinc-800/50 px-1.5 py-0.5 text-xs text-zinc-500">
+        <span
+          className="inline-flex items-center rounded-md bg-zinc-800/50 px-1.5 py-0.5 text-[11px] font-medium text-zinc-500 ring-1 ring-inset ring-zinc-700/30"
+          title={skills.slice(max).join(', ')}
+        >
           +{overflow}
         </span>
       )}

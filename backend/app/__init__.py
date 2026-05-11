@@ -50,11 +50,23 @@ def create_app():
     from app.routes.jobs import jobs_bp
     from app.routes.prep import prep_bp
     from app.routes.reminders import reminders_bp
+    from app.routes.resumes import resumes_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(jobs_bp)
     app.register_blueprint(prep_bp)
     app.register_blueprint(reminders_bp)
+    app.register_blueprint(resumes_bp)
+
+    @app.errorhandler(413)
+    def _too_large(e):
+        return jsonify({"error": "File too large. Maximum size is 5 MB."}), 413
+
+    import os
+    os.makedirs(
+        os.path.join(app.config["UPLOAD_DIR"], "resumes"),
+        exist_ok=True,
+    )
 
     from app.cli import reminders_cli
     app.cli.add_command(reminders_cli)

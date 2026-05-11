@@ -8,7 +8,7 @@ from sqlalchemy import func, case
 from sqlalchemy.exc import IntegrityError
 
 from app import db
-from app.models import Job
+from app.models import Job, ResumeVersion
 from app.utils.url_utils import clean_url, validate_url
 
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/api/jobs")
@@ -178,7 +178,7 @@ def update_job(job_id: int):
         return jsonify({"error": "Request body must be JSON"}), 400
 
     allowed = {"title", "company", "domain", "skills", "contact_email",
-               "status", "notes", "source"}
+               "status", "notes", "source", "resume_version_id"}
 
     for field in allowed:
         if field not in data:
@@ -195,6 +195,13 @@ def update_job(job_id: int):
             if isinstance(skills, str):
                 skills = [s.strip() for s in skills.split(",") if s.strip()]
             job.skills = skills
+        elif field == "resume_version_id":
+            rv_id = data["resume_version_id"]
+            if rv_id is not None:
+                rv = ResumeVersion.query.filter_by(id=rv_id, user_id=uid).first()
+                if not rv:
+                    return jsonify({"error": "Resume version not found"}), 404
+            job.resume_version_id = rv_id
         else:
             setattr(job, field, data[field])
 

@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+_base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 class Config:
     DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -35,3 +37,7 @@ class Config:
     REMINDER_FROM = os.environ.get("REMINDER_FROM", "") or os.environ.get("SMTP_USER", "")
     REMINDER_TO = os.environ.get("REMINDER_TO", "")
     REMINDER_TIMEZONE = os.environ.get("REMINDER_TIMEZONE", "Europe/Paris")
+
+    # Resume uploads — PDFs stored on disk
+    UPLOAD_DIR = os.environ.get("UPLOAD_DIR", os.path.join(_base_dir, "uploads"))
+    MAX_CONTENT_LENGTH = 6 * 1024 * 1024  # 6 MB to accommodate multipart overhead

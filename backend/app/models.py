@@ -18,11 +18,43 @@ class User(db.Model):
         lazy="dynamic",
         cascade="all, delete-orphan",
     )
+    resume_versions = db.relationship(
+        "ResumeVersion",
+        backref="owner",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
 
     def to_dict(self):
         return {
             "id": self.id,
             "email": self.email,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ResumeVersion(db.Model):
+    __tablename__ = "resume_versions"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    label = db.Column(db.Text, nullable=False)
+    filename = db.Column(db.Text, nullable=False)
+    storage_path = db.Column(db.Text, nullable=False)
+    file_size = db.Column(db.Integer, nullable=False)
+    content_hash = db.Column(db.Text, nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+    is_archived = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
+    created_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "label": self.label,
+            "filename": self.filename,
+            "file_size": self.file_size,
+            "notes": self.notes,
+            "is_archived": self.is_archived,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -43,6 +75,11 @@ class Job(db.Model):
     source = db.Column(db.Text, nullable=True)
     scraped_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
     applied_at = db.Column(db.DateTime, nullable=True)
+    resume_version_id = db.Column(
+        db.Integer,
+        db.ForeignKey("resume_versions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     VALID_STATUSES = ["Saved", "Applied", "Interviewing", "Offer", "Rejected", "needs_review"]
 
@@ -54,8 +91,13 @@ class Job(db.Model):
         order_by="InterviewPrepTask.position",
         foreign_keys="InterviewPrepTask.job_id",
     )
+    resume_version = db.relationship(
+        "ResumeVersion",
+        foreign_keys=[resume_version_id],
+    )
 
     def to_dict(self):
+        rv = self.resume_version
         return {
             "id": self.id,
             "url": self.url,
@@ -69,6 +111,7 @@ class Job(db.Model):
             "source": self.source,
             "scraped_at": self.scraped_at.isoformat() if self.scraped_at else None,
             "applied_at": self.applied_at.isoformat() if self.applied_at else None,
+            "resume_version": {"id": rv.id, "label": rv.label} if rv else None,
         }
 
 
