@@ -36,3 +36,20 @@ backend/instance/
 
 # Docker volumes (legacy — no Docker in this project)
 pgdata/
+
+# Logs
+*.log
+logs/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Migrations compiled
+backend/migrations/versions/__pycache__/
+
+# Secrets / certs
+*.pem
+*.key
+*.crt
