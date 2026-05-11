@@ -1,4 +1,6 @@
 import os
+from datetime import timedelta
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,3 +16,22 @@ class Config:
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-prod")
+
+    # Auth — single-user credentials live in .env
+    AUTH_USERNAME = os.environ.get("AUTH_USERNAME", "")
+    AUTH_PASSWORD_HASH = os.environ.get("AUTH_PASSWORD_HASH", "")
+
+    # JWT — uses its own secret so rotating sessions doesn't invalidate Flask signing
+    JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or SECRET_KEY
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=30)
+    JWT_ERROR_MESSAGE_KEY = "error"
+
+    # Email reminders — disabled unless REMINDERS_ENABLED=true and SMTP creds are set
+    REMINDERS_ENABLED = os.environ.get("REMINDERS_ENABLED", "false").lower() == "true"
+    SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+    SMTP_USER = os.environ.get("SMTP_USER", "")
+    SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")  # Gmail app password
+    REMINDER_FROM = os.environ.get("REMINDER_FROM", "") or os.environ.get("SMTP_USER", "")
+    REMINDER_TO = os.environ.get("REMINDER_TO", "")
+    REMINDER_TIMEZONE = os.environ.get("REMINDER_TIMEZONE", "Europe/Paris")

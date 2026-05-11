@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobPulse Weekly Digest</title>
+  <style>
+    body { margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #18181b; }
+    .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e4e4e7; }
+    .header { background: #18181b; padding: 28px 32px; }
+    .header-logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 28px; height: 28px; background: #4f46e5; border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+    .logo-text { color: #f4f4f5; font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+    .header-sub { color: #71717a; font-size: 12px; margin-top: 4px; }
+    .body { padding: 28px 32px; }
+    .section { margin-bottom: 28px; }
+    .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; margin-bottom: 12px; }
+    .job-card { border: 1px solid #e4e4e7; border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; background: #fafafa; }
+    .job-title { font-size: 14px; font-weight: 600; color: #18181b; margin-bottom: 2px; }
+    .job-company { font-size: 13px; color: #52525b; margin-bottom: 6px; }
+    .job-meta { font-size: 11px; color: #a1a1aa; }
+    .job-meta span { margin-right: 12px; }
+    .job-link { display: inline-block; margin-top: 8px; font-size: 12px; color: #4f46e5; text-decoration: none; font-weight: 500; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-saved { background: #f0fdf4; color: #166534; }
+    .badge-applied { background: #eff6ff; color: #1d4ed8; }
+    .badge-review { background: #fefce8; color: #854d0e; }
+    .divider { border: none; border-top: 1px solid #f4f4f5; margin: 20px 0; }
+    .empty-section { color: #a1a1aa; font-size: 13px; font-style: italic; }
+    .footer { background: #fafafa; border-top: 1px solid #f4f4f5; padding: 18px 32px; text-align: center; }
+    .footer p { margin: 0; font-size: 11px; color: #a1a1aa; }
+    .summary-pill { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-right: 6px; }
+    .pill-new { background: #f0fdf4; color: #166534; }
+    .pill-stale { background: #fff7ed; color: #9a3412; }
+    .pill-review { background: #fefce8; color: #854d0e; }
+    .summary-bar { margin-bottom: 24px; padding: 14px 16px; background: #f4f4f5; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <div class="header-logo">
+        <div class="logo-icon">
+          <svg width="14" height="14" fill="white" viewBox="0 0 20 20">
+            <path d="M10.394 2.08a1 1 0 0 0-.788 0l-7 3a1 1 0 0 0 0 1.84L5.25 8.051a.999.999 0 0 1 .356-.257l4-1.714a1 1 0 1 1 .788 1.838L7.667 9.088l1.94.831a1 1 0 0 0 .787 0l7-3a1 1 0 0 0 0-1.838l-7-3z"/>
+          </svg>
+        </div>
+        <span class="logo-text">JobPulse</span>
+      </div>
+      <div class="header-sub">Weekly digest &mdash; {{ generated_date }}</div>
+    </div>
+
+    <div class="body">
+      <div class="summary-bar">
+        {% if digest.new_jobs %}
+          <span class="summary-pill pill-new">{{ digest.new_jobs | length }} new to review</span>
+        {% endif %}
+        {% if digest.stale_applied %}
+          <span class="summary-pill pill-stale">{{ digest.stale_applied | length }} need follow-up</span>
+        {% endif %}
+        {% if digest.needs_review %}
+          <span class="summary-pill pill-review">{{ digest.needs_review | length }} need fixing</span>
+        {% endif %}
+        {% if digest.total == 0 %}
+          <span style="font-size:13px; color:#52525b;">All clear — nothing to action this week.</span>
+        {% endif %}
+      </div>
+
+      {% if digest.new_jobs %}
+      <div class="section">
+        <div class="section-title">New this week &mdash; review &amp; apply</div>
+        {% for job in digest.new_jobs %}
+        <div class="job-card">
+          <div class="job-title">{{ job.title }}</div>
+          <div class="job-company">{{ job.company }}</div>
+          <div class="job-meta">
+            {% if job.domain %}<span>{{ job.domain }}</span>{% endif %}
+            <span>Saved {{ job.scraped_at }}</span>
+            <span class="badge badge-saved">Saved</span>
+          </div>
+          <a href="{{ job.url }}" class="job-link">View job &rarr;</a>
+        </div>
+        {% endfor %}
+      </div>
+      <hr class="divider">
+      {% endif %}
+
+      {% if digest.stale_applied %}
+      <div class="section">
+        <div class="section-title">Follow up &mdash; applied 14+ days ago</div>
+        {% for job in digest.stale_applied %}
+        <div class="job-card">
+          <div class="job-title">{{ job.title }}</div>
+          <div class="job-company">{{ job.company }}</div>
+          <div class="job-meta">
+            <span>Applied {{ job.applied_at }}</span>
+            <span class="badge badge-applied">Applied</span>
+          </div>
+          <a href="{{ job.url }}" class="job-link">View job &rarr;</a>
+        </div>
+        {% endfor %}
+      </div>
+      <hr class="divider">
+      {% endif %}
+
+      {% if digest.needs_review %}
+      <div class="section">
+        <div class="section-title">Needs your attention &mdash; scraper couldn't fill these</div>
+        {% for job in digest.needs_review %}
+        <div class="job-card">
+          <div class="job-title">{{ job.title or job.url }}</div>
+          <div class="job-company">{{ job.company }}</div>
+          <div class="job-meta">
+            <span>Saved {{ job.scraped_at }}</span>
+            <span class="badge badge-review">Needs Review</span>
+          </div>
+          <a href="{{ job.url }}" class="job-link">View job &rarr;</a>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if digest.total == 0 %}
+      <p style="color:#52525b; font-size:14px; text-align:center; padding: 24px 0;">
+        Nothing to action this week. Keep tracking!
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="footer">
+      <p>JobPulse &bull; Your personal job tracker</p>
+      <p style="margin-top:4px;">This digest was sent because reminders are enabled in your .env config.</p>
+    </div>
+  </div>
+</body>
+</html>

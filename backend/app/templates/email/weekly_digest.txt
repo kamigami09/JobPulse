@@ -1,0 +1,44 @@
+JOBPULSE — Weekly Digest
+{{ generated_date }}
+========================================
+
+{% if digest.total == 0 %}
+Nothing to action this week. Keep tracking!
+{% else %}
+
+{% if digest.new_jobs %}
+NEW THIS WEEK ({{ digest.new_jobs | length }}) — review & apply
+----------------------------------------
+{% for job in digest.new_jobs %}
+  {{ job.title }} at {{ job.company }}
+  Saved: {{ job.scraped_at }}{% if job.domain %} | Domain: {{ job.domain }}{% endif %}
+  {{ job.url }}
+
+{% endfor %}
+{% endif %}
+
+{% if digest.stale_applied %}
+FOLLOW UP ({{ digest.stale_applied | length }}) — applied 14+ days ago
+----------------------------------------
+{% for job in digest.stale_applied %}
+  {{ job.title }} at {{ job.company }}
+  Applied: {{ job.applied_at }}
+  {{ job.url }}
+
+{% endfor %}
+{% endif %}
+
+{% if digest.needs_review %}
+NEEDS ATTENTION ({{ digest.needs_review | length }}) — scraper couldn't fill these
+----------------------------------------
+{% for job in digest.needs_review %}
+  {{ job.title or job.url }} — {{ job.company }}
+  Saved: {{ job.scraped_at }}
+  {{ job.url }}
+
+{% endfor %}
+{% endif %}
+
+{% endif %}
+========================================
+JobPulse — your personal job tracker

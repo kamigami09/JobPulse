@@ -1,24 +1,54 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 migrate = Migrate()
+jwt = JWTManager()
 
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object("app.config.Config")
 
-    CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": "*"}},
+        allow_headers=["Content-Type", "Authorization"],
+        expose_headers=["Content-Disposition"],
+    )
 
     db.init_app(app)
     migrate.init_app(app, db)
+    jwt.init_app(app)
 
+    # Uniform JSON shape for JWT errors so the frontend can react consistently
+    @jwt.unauthorized_loader
+    def _missing_token(reason):
+        return jsonify({"error": "Missing or invalid Authorization header"}), 401
+
+    @jwt.invalid_token_loader
+    def _invalid_token(reason):
+        return jsonify({"error": "Invalid token"}), 401
+
+    @jwt.expired_token_loader
+    def _expired_token(jwt_header, jwt_payload):
+        return jsonify({"error": "Token expired"}), 401
+
+    from app.routes.auth import auth_bp
     from app.routes.health import health_bp
     from app.routes.jobs import jobs_bp
+    from app.routes.prep import prep_bp
+    from app.routes.reminders import reminders_bp
+    app.register_blueprint(auth_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(jobs_bp)
+    app.register_blueprint(prep_bp)
+    app.register_blueprint(reminders_bp)
+
+    from app.cli import reminders_cli
+    app.cli.add_command(reminders_cli)
 
     return app

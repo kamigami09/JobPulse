@@ -9,7 +9,7 @@ FRONTEND_DIST="/var/www/jobpulse"
 LOG_DIR="/var/log/jobpulse"
 SERVICE_NAME="jobpulse"
 
-echo "==> [1/10] Updating packages and installing system dependencies"
+echo "==> [1/11] Updating packages and installing system dependencies"
 apt-get update -qq
 apt-get install -y -qq \
     git curl wget \
@@ -25,24 +25,24 @@ apt-get install -y -qq chromium-browser 2>/dev/null || \
     apt-get install -y -qq chromium 2>/dev/null || \
     echo "WARN: chromium not found — Layer 2 scraper (LI_AT) will be unavailable"
 
-echo "==> [2/10] Starting PostgreSQL"
+echo "==> [2/11] Starting PostgreSQL"
 systemctl enable postgresql --quiet
 systemctl start postgresql
 
-echo "==> [3/10] Creating PostgreSQL user and database"
+echo "==> [3/11] Creating PostgreSQL user and database"
 sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='jobpulse'" | grep -q 1 || \
     sudo -u postgres psql -c "CREATE USER jobpulse WITH PASSWORD 'jobpulse';"
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='jobpulse'" | grep -q 1 || \
     sudo -u postgres psql -c "CREATE DATABASE jobpulse OWNER jobpulse;"
 
-echo "==> [4/10] Cloning / updating repository"
+echo "==> [4/11] Cloning / updating repository"
 if [ -d "$BACKEND_DIR/.git" ]; then
     git -C "$BACKEND_DIR" pull --ff-only
 else
     git clone "$REPO_URL" "$BACKEND_DIR"
 fi
 
-echo "==> [5/10] Setting up .env file"
+echo "==> [5/11] Setting up .env file"
 ENV_FILE="$BACKEND_DIR/.env"
 if [ ! -f "$ENV_FILE" ]; then
     SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
@@ -51,22 +51,44 @@ DATABASE_URL=postgresql://jobpulse:jobpulse@localhost:5432/jobpulse
 LI_AT_COOKIE=
 FLASK_ENV=production
 SECRET_KEY=${SECRET}
+# Email reminders — fill in to enable weekly digest
+REMINDERS_ENABLED=false
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+REMINDER_FROM=
+REMINDER_TO=
+REMINDER_TIMEZONE=Europe/Paris
 ENVEOF
-    echo "  Created $ENV_FILE — add your LI_AT_COOKIE if you want LinkedIn layer-2 scraping."
+    echo "  Created $ENV_FILE — fill in SMTP_* vars and set REMINDERS_ENABLED=true to enable email digests."
 else
-    echo "  $ENV_FILE already exists, skipping."
+    # Add reminder vars to existing .env if not already present
+    grep -q "REMINDERS_ENABLED" "$ENV_FILE" || cat >> "$ENV_FILE" <<ENVEOF
+
+# Email reminders — fill in to enable weekly digest
+REMINDERS_ENABLED=false
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+REMINDER_FROM=
+REMINDER_TO=
+REMINDER_TIMEZONE=Europe/Paris
+ENVEOF
+    echo "  $ENV_FILE already exists — reminder vars appended if missing."
 fi
 
-echo "==> [6/10] Installing Python dependencies"
+echo "==> [6/11] Installing Python dependencies"
 cd "$BACKEND_DIR"
 python3 -m venv venv
 venv/bin/pip install --quiet --upgrade pip
 venv/bin/pip install --quiet -r requirements.txt
 
-echo "==> [7/10] Running database migrations"
+echo "==> [7/11] Running database migrations"
 FLASK_APP=run.py venv/bin/flask db upgrade
 
-echo "==> [8/10] Building React frontend"
+echo "==> [8/11] Building React frontend"
 cd "$BACKEND_DIR/frontend" 2>/dev/null || cd "$(dirname "$BACKEND_DIR")/frontend" 2>/dev/null || {
     # Try to find frontend relative to the cloned repo
     cd "$BACKEND_DIR/../frontend" 2>/dev/null || true
@@ -87,7 +109,7 @@ else
     echo "  WARN: frontend not found at $FRONTEND_SRC — skipping build"
 fi
 
-echo "==> [9/10] Configuring Nginx"
+echo "==> [9/11] Configuring Nginx"
 mkdir -p "$FRONTEND_DIST"
 cp "$BACKEND_DIR/deploy/nginx.conf" /etc/nginx/sites-available/jobpulse
 ln -sf /etc/nginx/sites-available/jobpulse /etc/nginx/sites-enabled/jobpulse
@@ -96,7 +118,7 @@ nginx -t
 systemctl enable nginx --quiet
 systemctl reload nginx
 
-echo "==> [10/10] Installing and starting systemd service"
+echo "==> [10/11] Installing and starting systemd service"
 mkdir -p "$LOG_DIR"
 chown www-data:www-data "$LOG_DIR"
 chown -R www-data:www-data "$BACKEND_DIR" "$FRONTEND_DIST"
@@ -111,10 +133,28 @@ ufw allow 22/tcp  --quiet 2>/dev/null || true
 ufw allow 80/tcp  --quiet 2>/dev/null || true
 ufw --force enable 2>/dev/null || true
 
+echo "==> [11/11] Installing weekly reminder cron job"
+CRON_LOG="$LOG_DIR/reminders.log"
+CRON_FILE="/etc/cron.d/jobpulse-reminders"
+if [ ! -f "$CRON_FILE" ]; then
+    cat > "$CRON_FILE" <<CRONEOF
+CRON_TZ=Europe/Paris
+0 9 * * 0 root cd $BACKEND_DIR && FLASK_APP=run.py $BACKEND_DIR/venv/bin/flask reminders send-weekly >> $CRON_LOG 2>&1
+CRONEOF
+    chmod 644 "$CRON_FILE"
+    echo "  Cron installed → $CRON_FILE (fires Sundays 09:00 Paris time)"
+    echo "  Set REMINDERS_ENABLED=true and fill SMTP_* in $ENV_FILE to activate."
+else
+    echo "  $CRON_FILE already exists, skipping."
+fi
+touch "$CRON_LOG" 2>/dev/null || true
+
 echo ""
 echo "============================================"
 echo "  JobPulse setup complete!"
 echo "  App:    http://$(hostname -I | awk '{print $1}')"
 echo "  Health: http://$(hostname -I | awk '{print $1}')/health"
 echo "  Logs:   journalctl -u jobpulse -f"
+echo "  Reminder cron: $CRON_FILE"
+echo "  Reminder log:  $CRON_LOG"
 echo "============================================"
