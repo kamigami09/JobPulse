@@ -1,12 +1,15 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()
+limiter = Limiter(key_func=get_remote_address, default_limits=[], storage_uri="memory://")
 
 
 def create_app():
@@ -23,8 +26,8 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+    limiter.init_app(app)
 
-    # Uniform JSON shape for JWT errors so the frontend can react consistently
     @jwt.unauthorized_loader
     def _missing_token(reason):
         return jsonify({"error": "Missing or invalid Authorization header"}), 401
@@ -36,6 +39,11 @@ def create_app():
     @jwt.expired_token_loader
     def _expired_token(jwt_header, jwt_payload):
         return jsonify({"error": "Token expired"}), 401
+
+    @limiter.request_filter
+    def _health_exempt():
+        from flask import request
+        return request.path == "/api/health"
 
     from app.routes.auth import auth_bp
     from app.routes.health import health_bp

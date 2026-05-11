@@ -3,7 +3,7 @@ import io
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request, Response
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func, case
 from sqlalchemy.exc import IntegrityError
 
@@ -14,19 +14,23 @@ from app.utils.url_utils import clean_url, validate_url
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/api/jobs")
 
 
+def _uid() -> int:
+    return int(get_jwt_identity())
+
+
 @jobs_bp.route("/stats", methods=["GET"])
 @jwt_required()
 def get_stats():
-    """Return job counts per status and funnel conversion rates."""
+    uid = _uid()
     row = db.session.query(
         func.count().label("total"),
-        func.count(case((Job.status == "Saved",       1))).label("saved"),
-        func.count(case((Job.status == "Applied",     1))).label("applied"),
-        func.count(case((Job.status == "Interviewing",1))).label("interviewing"),
-        func.count(case((Job.status == "Offer",       1))).label("offer"),
-        func.count(case((Job.status == "Rejected",    1))).label("rejected"),
-        func.count(case((Job.status == "needs_review",1))).label("needs_review"),
-    ).one()
+        func.count(case((Job.status == "Saved",        1))).label("saved"),
+        func.count(case((Job.status == "Applied",      1))).label("applied"),
+        func.count(case((Job.status == "Interviewing", 1))).label("interviewing"),
+        func.count(case((Job.status == "Offer",        1))).label("offer"),
+        func.count(case((Job.status == "Rejected",     1))).label("rejected"),
+        func.count(case((Job.status == "needs_review", 1))).label("needs_review"),
+    ).filter(Job.user_id == uid).one()
 
     total        = row.total
     applied      = row.applied
@@ -57,8 +61,11 @@ def get_stats():
 @jobs_bp.route("/export", methods=["GET"])
 @jwt_required()
 def export_csv():
-    """Return all Saved jobs as a downloadable CSV."""
-    jobs = Job.query.filter_by(status="Saved").order_by(Job.scraped_at.desc()).all()
+    uid = _uid()
+    jobs = (Job.query
+            .filter_by(user_id=uid, status="Saved")
+            .order_by(Job.scraped_at.desc())
+            .all())
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -86,10 +93,7 @@ def export_csv():
 @jobs_bp.route("/scrape", methods=["POST"])
 @jwt_required()
 def scrape_job():
-    """
-    Scrape a job URL and save it. Returns existing record if URL already saved.
-    Body: {"url": "https://..."}
-    """
+    uid = _uid()
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Request body must be JSON"}), 400
@@ -102,19 +106,17 @@ def scrape_job():
 
     cleaned = clean_url(url)
 
-    # Return existing record if already saved (UNIQUE constraint)
-    existing = Job.query.filter_by(url=cleaned).first()
+    existing = Job.query.filter_by(url=cleaned, user_id=uid).first()
     if existing:
         resp = existing.to_dict()
         resp["already_existed"] = True
         return jsonify(resp), 200
 
-    # Import here to keep startup fast and avoid circular imports
     from app.scraper import scrape_job as do_scrape
 
     try:
         scraped = do_scrape(cleaned)
-    except Exception as e:
+    except Exception:
         scraped = {
             "title": None, "company": None, "domain": None,
             "skills": [], "contact_email": None, "source": "other",
@@ -125,6 +127,7 @@ def scrape_job():
     scraped.pop("_layer_used", None)
 
     job = Job(
+        user_id=uid,
         url=cleaned,
         title=scraped.get("title"),
         company=scraped.get("company"),
@@ -140,8 +143,7 @@ def scrape_job():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        # Race condition: another request saved the same URL simultaneously
-        existing = Job.query.filter_by(url=cleaned).first()
+        existing = Job.query.filter_by(url=cleaned, user_id=uid).first()
         if existing:
             resp = existing.to_dict()
             resp["already_existed"] = True
@@ -154,9 +156,9 @@ def scrape_job():
 @jobs_bp.route("", methods=["GET"])
 @jwt_required()
 def list_jobs():
-    """Return all jobs, newest first. Supports ?status= filter."""
+    uid = _uid()
     status_filter = request.args.get("status")
-    query = Job.query
+    query = Job.query.filter_by(user_id=uid)
     if status_filter:
         query = query.filter_by(status=status_filter)
     jobs = query.order_by(Job.scraped_at.desc()).all()
@@ -166,8 +168,11 @@ def list_jobs():
 @jobs_bp.route("/<int:job_id>", methods=["PATCH"])
 @jwt_required()
 def update_job(job_id: int):
-    """Partial update of any field. Sets applied_at automatically on first Applied transition."""
+    uid = _uid()
     job = Job.query.get_or_404(job_id)
+    if job.user_id != uid:
+        return jsonify({"error": "Not found"}), 404
+
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Request body must be JSON"}), 400
@@ -182,7 +187,6 @@ def update_job(job_id: int):
             status = data["status"]
             if status not in Job.VALID_STATUSES:
                 return jsonify({"error": f"Invalid status. Valid: {Job.VALID_STATUSES}"}), 400
-            # Auto-set applied_at on first transition to Applied
             if status == "Applied" and job.applied_at is None:
                 job.applied_at = datetime.now(timezone.utc)
             job.status = status
@@ -201,7 +205,10 @@ def update_job(job_id: int):
 @jobs_bp.route("/<int:job_id>", methods=["DELETE"])
 @jwt_required()
 def delete_job(job_id: int):
+    uid = _uid()
     job = Job.query.get_or_404(job_id)
+    if job.user_id != uid:
+        return jsonify({"error": "Not found"}), 404
     db.session.delete(job)
     db.session.commit()
     return "", 204

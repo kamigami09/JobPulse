@@ -13,13 +13,14 @@ export const updateJob = (id, patch) =>
 export const deleteJob = (id) =>
   http.delete(`/api/jobs/${id}`).then((r) => r.data)
 
-export const login = (username, password) =>
-  http.post('/api/auth/login', { username, password }).then((r) => r.data)
+export const login = (email, password) =>
+  http.post('/api/auth/login', { email, password }).then((r) => r.data)
+
+export const register = (email, password) =>
+  http.post('/api/auth/register', { email, password }).then((r) => r.data)
 
 export const fetchMe = () => http.get('/api/auth/me').then((r) => r.data)
 
-// CSV export: must be a blob fetch so the Authorization header is sent,
-// then convert to a downloadable file in the browser.
 export const listPrep = (jobId) =>
   http.get(`/api/jobs/${jobId}/prep`).then((r) => r.data)
 

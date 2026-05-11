@@ -58,7 +58,8 @@ def history():
 def preview():
     """Render the digest HTML without sending. Returns text/html."""
     from datetime import datetime, timezone
-    jobs = Job.query.all()
+    from flask_jwt_extended import get_jwt_identity
+    jobs = Job.query.filter_by(user_id=int(get_jwt_identity())).all()
     digest = build_digest(jobs)
     generated_date = datetime.now(timezone.utc).strftime("%A, %d %B %Y")
     html = render_template("email/weekly_digest.html", digest=digest, generated_date=generated_date)

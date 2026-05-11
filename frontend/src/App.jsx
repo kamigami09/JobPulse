@@ -6,7 +6,7 @@ import AddJobModal from './components/AddJobModal'
 import LoginPage from './components/LoginPage'
 import StatCards from './components/StatCards'
 import SettingsModal from './components/SettingsModal'
-import { isAuthenticated, clearToken, getUsername } from './lib/auth'
+import { isAuthenticated, clearToken, getUserEmail } from './lib/auth'
 
 export default function App() {
   const [authed, setAuthed] = useState(isAuthenticated)
@@ -56,7 +56,7 @@ export default function App() {
         onAddJob={() => setModalOpen(true)}
         statusFilter={statusFilter}
         onStatusFilter={setStatusFilter}
-        username={getUsername()}
+        username={getUserEmail()}
         onLogout={handleLogout}
         onSettings={() => setSettingsOpen(true)}
       />

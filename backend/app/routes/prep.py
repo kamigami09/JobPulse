@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func as sqlfunc
 
 from app import db
@@ -10,10 +10,23 @@ from app.models import InterviewPrepTask, Job
 prep_bp = Blueprint("prep", __name__)
 
 
+def _uid() -> int:
+    return int(get_jwt_identity())
+
+
+def _get_owned_job(job_id: int):
+    """Return job if it exists and belongs to current user, else 404."""
+    job = Job.query.get_or_404(job_id)
+    if job.user_id != _uid():
+        return None
+    return job
+
+
 @prep_bp.route("/api/jobs/<int:job_id>/prep", methods=["GET"])
 @jwt_required()
 def list_prep(job_id):
-    Job.query.get_or_404(job_id)
+    if _get_owned_job(job_id) is None:
+        return jsonify({"error": "Not found"}), 404
     tasks = InterviewPrepTask.query.filter_by(job_id=job_id).order_by(InterviewPrepTask.position).all()
     return jsonify([t.to_dict() for t in tasks])
 
@@ -21,7 +34,9 @@ def list_prep(job_id):
 @prep_bp.route("/api/jobs/<int:job_id>/prep/seed", methods=["POST"])
 @jwt_required()
 def seed_prep(job_id):
-    job = Job.query.get_or_404(job_id)
+    job = _get_owned_job(job_id)
+    if job is None:
+        return jsonify({"error": "Not found"}), 404
     from app.services.prep_service import seed_default
     seed_default(job, db)
     db.session.commit()
@@ -32,7 +47,8 @@ def seed_prep(job_id):
 @prep_bp.route("/api/jobs/<int:job_id>/prep", methods=["POST"])
 @jwt_required()
 def create_prep(job_id):
-    Job.query.get_or_404(job_id)
+    if _get_owned_job(job_id) is None:
+        return jsonify({"error": "Not found"}), 404
     data = request.get_json(silent=True)
     if not data or not (data.get("text") or "").strip():
         return jsonify({"error": "text is required"}), 400
@@ -53,6 +69,9 @@ def create_prep(job_id):
 @jwt_required()
 def update_prep(task_id):
     task = InterviewPrepTask.query.get_or_404(task_id)
+    if task.job.user_id != _uid():
+        return jsonify({"error": "Not found"}), 404
+
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Request body must be JSON"}), 400
@@ -73,6 +92,8 @@ def update_prep(task_id):
 @jwt_required()
 def delete_prep(task_id):
     task = InterviewPrepTask.query.get_or_404(task_id)
+    if task.job.user_id != _uid():
+        return jsonify({"error": "Not found"}), 404
     db.session.delete(task)
     db.session.commit()
     return "", 204
@@ -81,7 +102,8 @@ def delete_prep(task_id):
 @prep_bp.route("/api/jobs/<int:job_id>/prep/reorder", methods=["PATCH"])
 @jwt_required()
 def reorder_prep(job_id):
-    Job.query.get_or_404(job_id)
+    if _get_owned_job(job_id) is None:
+        return jsonify({"error": "Not found"}), 404
     data = request.get_json(silent=True)
     ordered_ids = data.get("ordered_ids") if data else None
     if not isinstance(ordered_ids, list):
@@ -98,11 +120,12 @@ def reorder_prep(job_id):
 @prep_bp.route("/api/prep/stats", methods=["GET"])
 @jwt_required()
 def prep_stats():
+    uid = _uid()
     pending = (
         db.session.query(sqlfunc.count(InterviewPrepTask.id))
         .join(Job, Job.id == InterviewPrepTask.job_id)
-        .filter(Job.status == "Interviewing", InterviewPrepTask.done == False)  # noqa: E712
+        .filter(Job.user_id == uid, Job.status == "Interviewing", InterviewPrepTask.done == False)  # noqa: E712
         .scalar()
     ) or 0
-    interviewing = Job.query.filter_by(status="Interviewing").count()
+    interviewing = Job.query.filter_by(user_id=uid, status="Interviewing").count()
     return jsonify({"pending_tasks": pending, "interviewing_jobs": interviewing})
