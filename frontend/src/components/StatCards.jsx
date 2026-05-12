@@ -11,9 +11,9 @@ function sub(num, denom, label) {
   return `${num} of ${denom}`
 }
 
-function Card({ label, value, detail, accent, loading }) {
+function Card({ label, value, detail, accent, loading, rate, barColor }) {
   return (
-    <div className={`relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex flex-col gap-2 min-w-0 transition-colors hover:border-zinc-700`}>
+    <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex flex-col gap-2 min-w-0 transition-colors hover:border-zinc-700">
       {accent && (
         <div className={`absolute top-0 left-0 right-0 h-px ${accent}`} />
       )}
@@ -31,6 +31,16 @@ function Card({ label, value, detail, accent, loading }) {
         <div className="h-3.5 w-28 rounded bg-zinc-800 shimmer" />
       ) : (
         <span className="text-xs text-zinc-500 leading-relaxed">{detail}</span>
+      )}
+      {rate !== undefined && !loading && (
+        <div className="mt-auto pt-2">
+          <div className="h-0.5 w-full rounded-full bg-zinc-800">
+            <div
+              className={`h-0.5 rounded-full transition-all duration-700 ${barColor ?? 'bg-indigo-500'}`}
+              style={{ width: `${Math.min(100, Math.round((rate ?? 0) * 100))}%` }}
+            />
+          </div>
+        </div>
       )}
     </div>
   )
@@ -67,6 +77,8 @@ export default function StatCards({ refreshKey }) {
         detail={loading ? null : sub(counts.Applied ?? 0, total, 'jobs applied')}
         accent="bg-blue-500/60"
         loading={loading}
+        rate={rates.response_rate}
+        barColor="bg-blue-500"
       />
       <Card
         label="Interview Rate"
@@ -74,6 +86,8 @@ export default function StatCards({ refreshKey }) {
         detail={loading ? null : sub(counts.Interviewing ?? 0, counts.Applied ?? 0, 'apps to interview')}
         accent="bg-amber-500/60"
         loading={loading}
+        rate={rates.interview_rate}
+        barColor="bg-amber-500"
       />
       <Card
         label="Offer Rate"
@@ -81,6 +95,8 @@ export default function StatCards({ refreshKey }) {
         detail={loading ? null : sub(counts.Offer ?? 0, counts.Interviewing ?? 0, 'interviews to offer')}
         accent="bg-emerald-500/60"
         loading={loading}
+        rate={rates.offer_rate}
+        barColor="bg-emerald-500"
       />
     </div>
   )

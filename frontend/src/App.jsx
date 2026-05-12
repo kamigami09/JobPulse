@@ -5,9 +5,18 @@ import JobGrid from './components/JobGrid'
 import AddJobModal from './components/AddJobModal'
 import LoginPage from './components/LoginPage'
 import StatCards from './components/StatCards'
+import PipelineFunnel from './components/PipelineFunnel'
 import SettingsModal from './components/SettingsModal'
 import ResumeManagerModal from './components/ResumeManagerModal'
 import { isAuthenticated, clearToken, getUserEmail } from './lib/auth'
+
+function SectionLabel({ children }) {
+  return (
+    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600 mb-3">
+      {children}
+    </p>
+  )
+}
 
 export default function App() {
   const [authed, setAuthed] = useState(isAuthenticated)
@@ -40,7 +49,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-[#0a0a0a] text-zinc-100">
       <TopBar
         onAddJob={() => setModalOpen(true)}
         onResumes={() => setResumesOpen(true)}
@@ -51,18 +60,24 @@ export default function App() {
         onSettings={() => setSettingsOpen(true)}
       />
 
-      <main className="mx-auto max-w-screen-2xl px-6 py-6">
-        <StatCards refreshKey={refreshKey} />
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-sm font-medium text-zinc-500 tracking-tight">
-            All jobs
-          </h1>
+      <main className="mx-auto max-w-screen-2xl px-6 py-7">
+
+        <SectionLabel>Pipeline</SectionLabel>
+        <PipelineFunnel refreshKey={refreshKey} />
+
+        <div id="analytics" className="mt-6">
+          <SectionLabel>Analytics</SectionLabel>
+          <StatCards refreshKey={refreshKey} />
         </div>
-        <JobGrid
-          refreshKey={refreshKey}
-          onAddJob={() => setModalOpen(true)}
-          statusFilter={statusFilter}
-        />
+
+        <div className="mt-6">
+          <SectionLabel>Job Tracker</SectionLabel>
+          <JobGrid
+            refreshKey={refreshKey}
+            onAddJob={() => setModalOpen(true)}
+            statusFilter={statusFilter}
+          />
+        </div>
       </main>
 
       {modalOpen && (
